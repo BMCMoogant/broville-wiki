@@ -32,7 +32,7 @@ function showView(view){
   $('workspace-title').textContent=view==='article'?'Edit article':view==='people'?'Manage editors':view==='suggestions'?'Review suggestions':'Editor workspace';
   for(const section of document.querySelectorAll('[data-workspace-view]'))section.hidden=section.dataset.workspaceView!==view;
   for(const control of document.querySelectorAll('[data-view]'))control.setAttribute('aria-current',control.dataset.view===view?'page':'false');
-  if(view==='suggestions')refreshSuggestions().catch(error=>say('suggestion-message',error.message));
+  if(view==='suggestions'){say('github-sync-message','Checking GitHub suggestions…');api('github/sync','POST',{}).then(result=>say('github-sync-message',result.added+' new GitHub suggestions imported.')).catch(error=>say('github-sync-message','Local inbox is available. GitHub sync: '+error.message)).finally(()=>refreshSuggestions().catch(error=>say('suggestion-message',error.message)));}
   if(view==='github')window.dispatchEvent(new Event('github-workspace-open'));
   if(view==='people')loadUsers().catch(error=>say('people-message',error.message));
 }
