@@ -43,7 +43,6 @@ window.createMediaEditor=({root,articleRoot,galleryRoot,request,wikiRoot,onChang
     gallery.replaceChildren(node('h3','Gallery'));
     gallery.append(input('Show gallery when it has images',value.gallery.enabled,checked=>value.gallery.enabled=checked,{type:'checkbox'}));
     textField(gallery,'Gallery title',value.gallery.title,text=>value.gallery.title=text);
-    gallery.append(input('Collapse gallery behind a spoiler warning',value.gallery.spoiler,checked=>value.gallery.spoiler=checked,{type:'checkbox'}));
   }
   let newPlacement='article';
   function newImage(file){const image={id:'image-'+crypto.randomUUID(),file:file.file,caption:'',alt:'',credit:file.credit??'',source:file.source??'',placement:newPlacement==='infobox'?'hidden':newPlacement,spoiler:false};if(newPlacement==='infobox'){value.infobox.enabled=true;value.infobox.image=image.id;}return image;}
@@ -92,7 +91,7 @@ window.createMediaEditor=({root,articleRoot,galleryRoot,request,wikiRoot,onChang
       textField(card,'Caption',image.caption,text=>{image.caption=text;},{multiline:true});
       const advanced=node('details','','image-advanced');advanced.append(node('summary','File, accessibility & credits'));advanced.append(fileLabel,placementLabel);card.append(advanced);
       textField(advanced,'Alternative text',image.alt,text=>image.alt=text);
-      advanced.append(input('Image credit',image.credit,text=>image.credit=text),input('Source link',image.source,text=>image.source=text,{type:'url'}));card.append(input('This image reveals a spoiler',image.spoiler,checked=>image.spoiler=checked,{type:'checkbox'}));(value.infobox.image===image.id?infoboxImages:image.placement==='gallery'?galleryImages:images).append(card);
+      advanced.append(input('Image credit',image.credit,text=>image.credit=text),input('Source link',image.source,text=>image.source=text,{type:'url'}));(value.infobox.image===image.id?infoboxImages:image.placement==='gallery'?galleryImages:images).append(card);
     });
   }
   return {
