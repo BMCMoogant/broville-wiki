@@ -118,6 +118,7 @@ tabs.forEach(button=>button.addEventListener('click',()=>{
   }
 }));
 document.querySelectorAll('.map-panel').forEach(panel=>{
+  if(panel.classList.contains('atlas-map-panel'))return;
   const map=panel.querySelector('.map-canvas');
   const scroll=panel.querySelector('.map-scroll');
   const reset=panel.querySelector('[data-zoom="reset"]');
