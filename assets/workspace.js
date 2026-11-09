@@ -119,7 +119,7 @@ async function openWorkspace(){
   for(const control of document.querySelectorAll('[data-admin]'))control.hidden=session.user.role!=='admin';
   await websitePublication.load(session.user.role==='admin');
   renderChooser();await media.library();
-  if(session.user.role==='admin')await refreshSuggestions();
+  if(session.user.role==='admin'){await refreshSuggestions();checkInbox();}
   const suggestion=params.get('suggestion');if(suggestion&&session.user.role==='admin')linkedSuggestion=queue.find(record=>record.id===suggestion&&record.status==='accepted')??null;
   const id=params.get('page');
   if(id&&collection.entries.some(record=>record.entry.id===id))loadArticle(id);
@@ -170,7 +170,7 @@ for(const control of document.querySelectorAll('[data-markup]'))control.addEvent
   if(action==='link'){const id=prompt('Article address (for example, solar):','solar');if(!id)return;const target=collection.entries.find(record=>record.entry.id===id)?.entry;if(!target){say('article-message','That article was not found.');return;}values.link='[['+id+'|'+(selectedText||target.title)+']]';}
   textarea.setRangeText(values[action],textarea.selectionStart,textarea.selectionEnd,'select');textarea.focus();markDirty();
 });
-async function refreshSuggestions(){queue=(await api('suggestions')).suggestions;$('suggestion-count').textContent='('+queue.filter(record=>['pending','accepted'].includes(record.status)).length+')';if(activeView==='suggestions')renderSuggestions();}
+async function refreshSuggestions(){queue=(await api('suggestions')).suggestions;updateInboxBadge();$('suggestion-count').textContent='('+queue.filter(record=>['pending','accepted'].includes(record.status)).length+')';if(activeView==='suggestions')renderSuggestions();}
 function renderSuggestions(){
   const area=$('suggestion-inbox'),filter=$('suggestion-filter').value;area.replaceChildren();
   const records=queue.filter(record=>filter==='all'||record.status===filter);
@@ -216,3 +216,21 @@ if(location.protocol!=='file:')api('status').then(async status=>{
   if(status.setupRequired){if(setupToken){$('workspace-title').textContent='Create your administrator account';$('setup-section').hidden=false;say('workspace-message','First-time setup · choose your account details below.');}else{$('setup-needed').hidden=false;say('workspace-message','This wiki needs its first administrator account.');}return;}
   setupToken='';sessionStorage.removeItem('broville.setup');session=(await api('session')).session;if(session)await openWorkspace();else showSignIn();
 }).catch(error=>say('workspace-message',error.message));
+
+let inboxChecking=false,lastInboxCheck=0;
+function updateInboxBadge(){
+ const pending=queue.filter(item=>item.status==='pending').length,accepted=queue.filter(item=>item.status==='accepted').length,total=pending+accepted;
+ $('inbox-total').textContent=String(total);$('inbox-alert').classList.toggle('has-suggestions',total>0);
+ $('inbox-summary').textContent=total?pending+' pending suggestions · '+accepted+' accepted and ready to edit.':'No suggestions waiting for review.';
+ document.title=(total?'('+total+') ':'')+'Editor workspace · Broville Wiki';
+}
+async function checkInbox(){
+ if(!session||session.user.role!=='admin'||inboxChecking||Date.now()-lastInboxCheck<60000)return;
+ inboxChecking=true;lastInboxCheck=Date.now();
+ try{await api('github/sync','POST',{});await refreshSuggestions();$('inbox-check-status').textContent='Last checked '+new Date().toLocaleTimeString('en')+'. Checks automatically every minute while this editor is visible.';}
+ catch(error){$('inbox-check-status').textContent='GitHub check unavailable: '+error.message+' Your local inbox remains available.';}
+ finally{inboxChecking=false;}
+}
+setInterval(()=>{if(!document.hidden)checkInbox();},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkInbox();});
+window.addEventListener('focus',checkInbox);
