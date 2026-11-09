@@ -1,3 +1,4 @@
+import {connectWebsitePublication} from './website-publication.js';
 import {connectGitHubWorkspace} from './github-workspace.js';
 import {createVisualEditor} from './visual-editor.js';
 const $=id=>document.getElementById(id);
@@ -20,6 +21,7 @@ async function api(path,method='GET',payload){
 const media=createMediaEditor({root:$('media-editor'),articleRoot:$('article-media-editor'),galleryRoot:$('gallery-media-editor'),request:api,wikiRoot:rootUrl,onChange:markDirty,onInsert:id=>{showPanel('text');visualEditor.insertImage(id);}});
 media.load();
 connectGitHubWorkspace({api,refreshSuggestions});
+const websitePublication=connectWebsitePublication({api});
 const visualEditor=createVisualEditor({surface:$('visual-body'),source:field('body'),onChange:markDirty,images:()=>media.value().images});
 $('visual-mode').addEventListener('click',()=>visualEditor.mode(true));
 $('source-mode').addEventListener('click',()=>visualEditor.mode(false));
@@ -115,6 +117,7 @@ function changes(){
 async function openWorkspace(){
   collection=await api('entries');$('setup-section').hidden=true;$('setup-needed').hidden=true;$('sign-in-section').hidden=true;$('workspace').hidden=false;$('workspace-title').textContent='Your workspace';$('current-user').textContent=session.user.name+' · '+(session.user.role==='admin'?'Administrator':'Editor');document.querySelector('.account-link').textContent='Workspace';
   for(const control of document.querySelectorAll('[data-admin]'))control.hidden=session.user.role!=='admin';
+  await websitePublication.load(session.user.role==='admin');
   renderChooser();await media.library();
   if(session.user.role==='admin')await refreshSuggestions();
   const suggestion=params.get('suggestion');if(suggestion&&session.user.role==='admin')linkedSuggestion=queue.find(record=>record.id===suggestion&&record.status==='accepted')??null;
@@ -152,7 +155,7 @@ form.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event
 $('preview-button').addEventListener('click',()=>showPanel('preview'));
 form.addEventListener('submit',async event=>{
   event.preventDefault();const entry=collect(event.submitter?.dataset.status??'draft'),summary=field('summary').value;setBusy(form,true);say('article-message',entry.status==='published'?'Publishing…':'Saving draft…');
-  try{collection=await api('entries','POST',{entry,summary:summary||(linkedSuggestion?'Applied suggestion: '+linkedSuggestion.subject:''),suggestionId:entry.status==='published'?linkedSuggestion?.id:undefined,base:selected?.base??null,draftVersion:selected?.draftVersion??null});if(entry.status==='published'&&linkedSuggestion){linkedSuggestion=null;await refreshSuggestions();}const panel=activePanel;loadArticle(entry.id);renderChooser();showPanel(panel);say('article-message',entry.status==='published'?'Published. The article, search and links are up to date.':'Draft saved. The published article is unchanged.');}
+  try{collection=await api('entries','POST',{entry,summary:summary||(linkedSuggestion?'Applied suggestion: '+linkedSuggestion.subject:''),suggestionId:entry.status==='published'?linkedSuggestion?.id:undefined,base:selected?.base??null,draftVersion:selected?.draftVersion??null});if(entry.status==='published'&&linkedSuggestion){linkedSuggestion=null;await refreshSuggestions();}const panel=activePanel;loadArticle(entry.id);renderChooser();showPanel(panel);say('article-message',entry.status==='published'?'Saved on this computer. The article, search and links are up to date.':'Draft saved. The published article is unchanged.');if(entry.status==='published')websitePublication.publish();}
   catch(error){say('article-message',error.message);}finally{setBusy(form,false);}
 });
 for(const control of document.querySelectorAll('[data-markup]'))control.addEventListener('mousedown',event=>{if(visualEditor.active)event.preventDefault();});
