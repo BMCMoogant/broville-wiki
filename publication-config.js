@@ -1,0 +1,1 @@
+window.BROVILLE_PUBLICATION={"mode":"github","repository":"BMCMoogant/broville-wiki","siteUrl":"https://bmcmoogant.github.io/broville-wiki/"};
