@@ -1,3 +1,4 @@
+import {sections as documentSections} from './wiki-markup.js';
 import {createDocumentsEditor} from './documents-editor.js';
 import {connectWebsitePublication} from './website-publication.js';
 import {connectGitHubWorkspace} from './github-workspace.js';
@@ -19,7 +20,7 @@ async function api(path,method='GET',payload){
   if(!response.headers.get('content-type')?.includes('application/json'))throw Error('This is a reading copy. Editing needs the wiki server. Open Open Wiki.cmd on the computer running the wiki.');
   const data=await response.json();if(!response.ok)throw Object.assign(Error(data.error||'The request could not be completed.'),{status:response.status});return data;
 }
-const media=createMediaEditor({root:$('media-editor'),articleRoot:$('article-media-editor'),galleryRoot:$('gallery-media-editor'),request:api,wikiRoot:rootUrl,onChange:markDirty,onRemove:id=>{field('body').value=field('body').value.replaceAll('{{image:'+id+'}}','');visualEditor.refresh();},onInsert:id=>{showPanel('text');visualEditor.insertImage(id);media.showInArticle(id);}});
+const media=createMediaEditor({root:$('media-editor'),articleRoot:$('article-media-editor'),galleryRoot:$('gallery-media-editor'),request:api,wikiRoot:rootUrl,onChange:()=>{markDirty();if($('visual-body')?.editorView)visualEditor.updateImages();},onRemove:id=>{field('body').value=field('body').value.replaceAll('{{image:'+id+'}}','');visualEditor.refresh();},onInsert:id=>{showPanel('text');visualEditor.insertImage(id);media.showInArticle(id);}});
 media.load();
 const documentsEditor=createDocumentsEditor($('original-documents-editor'),markDirty);
 connectGitHubWorkspace({api,refreshSuggestions});
@@ -57,11 +58,11 @@ function updateUrl(id=null){
 }
 function openSection(){
   if(sectionOpened||!params.get('section')||selected?.entry.id!==params.get('page'))return;sectionOpened=true;
-  const original=field('body').value,headings=[...original.matchAll(/^(##|###) (.+)$/gm)];let parent='';
+  const original=field('body').value,headings=documentSections(original).filter(item=>item.level);
   for(let index=0;index<headings.length;index++){
-    const match=headings[index],level=match[1].length;if(level===2)parent=slugify(match[2]);const id=level===2?parent:parent+'-'+slugify(match[2]);if(id!==params.get('section'))continue;
-    const next=headings.slice(index+1).find(heading=>heading[1].length<=level);sectionMode={original,start:match.index,end:next?.index??original.length};field('body').value=original.slice(sectionMode.start,sectionMode.end);
-    const notice=$('section-notice');notice.hidden=false;notice.replaceChildren(make('span','Editing section: '+match[2]+' '),button('Edit the whole article',()=>{field('body').value=wholeBody();sectionMode=null;notice.hidden=true;visualEditor.refresh();}));return;
+    const section=headings[index];if(section.id!==params.get('section'))continue;
+    const next=headings.slice(index+1).find(item=>item.level<=section.level);sectionMode={original,start:section.start,end:next?.start??original.length};field('body').value=original.slice(sectionMode.start,sectionMode.end);
+    const notice=$('section-notice');notice.hidden=false;notice.replaceChildren(make('span','Editing section: '+section.title+' '),button('Edit the whole article',()=>{field('body').value=wholeBody();sectionMode=null;notice.hidden=true;visualEditor.refresh();}));return;
   }
 }
 function loadArticle(id,{snapshot=null,newFromSuggestion=false}={}){
@@ -166,13 +167,13 @@ for(const control of document.querySelectorAll('[data-markup]'))control.addEvent
 for(const control of document.querySelectorAll('[data-markup]'))control.addEventListener('click',()=>{
   if(visualEditor.active){
     let target=null;
-    if(control.dataset.markup==='link'){target=prompt('Article address (for example, solar):','solar');if(!target)return;if(!collection.entries.some(record=>record.entry.id===target)){say('article-message','That article was not found.');return;}}
-    visualEditor.format(control.dataset.markup,target);return;
+    if(control.dataset.markup==='link'){target=prompt('Article address or HTTPS link:','solar');if(!target)return;if(!/^https?:\/\//.test(target)&&!collection.entries.some(record=>record.entry.id===target)){say('article-message','That article was not found.');return;}}
+    visualEditor.format(control.dataset.markup,target);control.closest('.insert-menu')?.removeAttribute('open');return;
   }
   const textarea=field('body'),selectedText=textarea.value.slice(textarea.selectionStart,textarea.selectionEnd),action=control.dataset.markup;
-  const values={bold:'**'+(selectedText||'text')+'**',heading:'\n## '+(selectedText||'New section')+'\n',subheading:'\n### '+(selectedText||'New subsection')+'\n',list:'\n- '+(selectedText||'Item')+'\n',table:'\n| Column | Column |\n| --- | --- |\n| Value | Value |\n',spoilers:'\n## Spoilers\n'+(selectedText||'Spoiler content.')+'\n'};
-  if(action==='link'){const id=prompt('Article address (for example, solar):','solar');if(!id)return;const target=collection.entries.find(record=>record.entry.id===id)?.entry;if(!target){say('article-message','That article was not found.');return;}values.link='[['+id+'|'+(selectedText||target.title)+']]';}
-  textarea.setRangeText(values[action],textarea.selectionStart,textarea.selectionEnd,'select');textarea.focus();markDirty();
+  const values={bold:'**'+(selectedText||'text')+'**',italic:'*'+(selectedText||'text')+'*',quote:'\n> '+(selectedText||'Quoted text').replace(/\n/g,'\n> ')+'\n',code:'\n```\n'+(selectedText||'Code or copyable text')+'\n```\n',inlinecode:'`'+(selectedText||'code')+'`',orderedlist:'\n1. '+(selectedText||'Item')+'\n',rule:'\n---\n',strike:'~~'+(selectedText||'text')+'~~',heading:'\n## '+(selectedText||'New section')+'\n',subheading:'\n### '+(selectedText||'New subsection')+'\n',list:'\n- '+(selectedText||'Item')+'\n',table:'\n| Column | Column |\n| --- | --- |\n| Value | Value |\n',spoilers:'\n:::spoiler Reveal spoiler\n'+(selectedText||'Spoiler content.')+'\n:::\n'};
+  if(action==='link'){const id=prompt('Article address (for example, solar):','solar');if(!id)return;const target=collection.entries.find(record=>record.entry.id===id)?.entry;if(/^https?:\/\//.test(id)){values.link='['+(selectedText||id)+']('+id+')';}else if(!target){say('article-message','That article was not found.');return;}else values.link='[['+id+'|'+(selectedText||target.title)+']]';}
+  if(!values[action]){say('article-message','This command is available in the Visual editor.');return;}textarea.setRangeText(values[action],textarea.selectionStart,textarea.selectionEnd,'select');textarea.focus();markDirty();
 });
 async function refreshSuggestions(){queue=(await api('suggestions')).suggestions;updateInboxBadge();$('suggestion-count').textContent='('+queue.filter(record=>['pending','accepted'].includes(record.status)).length+')';if(activeView==='suggestions')renderSuggestions();}
 function renderSuggestions(){
@@ -217,6 +218,7 @@ async function publicHistory(id){
 }
 if(params.get('tab')==='history'&&params.get('page'))publicHistory(params.get('page'));
 if(location.protocol!=='file:')api('status').then(async status=>{
+  if(status.editorEngine!=='structured-markdown-v1'){say('workspace-message','The editor has been upgraded. Close the wiki server window, reopen Open Wiki.cmd, then reload this page. Your saved articles are preserved.');$('workspace-title').textContent='Restart the wiki server';return;}
   if(status.setupRequired){if(setupToken){$('workspace-title').textContent='Create your administrator account';$('setup-section').hidden=false;say('workspace-message','First-time setup · choose your account details below.');}else{$('setup-needed').hidden=false;say('workspace-message','This wiki needs its first administrator account.');}return;}
   setupToken='';sessionStorage.removeItem('broville.setup');session=(await api('session')).session;if(session)await openWorkspace();else showSignIn();
 }).catch(error=>say('workspace-message',error.message));

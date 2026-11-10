@@ -148,3 +148,6 @@ document.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener
 }));
 
 if(!window.BROVILLE_PUBLICATION&&location.protocol!=='file:'){fetch(new URL('api/session',location.href)).then(response=>response.ok?response.json():null).then(data=>{if(data?.session?.user){const link=document.querySelector('.account-link');if(link)link.textContent='Workspace';}}).catch(()=>{});}
+
+// Code/text blocks share a copy action on articles and live previews.
+document.addEventListener('click',async event=>{const button=event.target.closest('.copy-code');if(!button)return;const code=button.parentElement.querySelector('code');if(!code)return;try{await navigator.clipboard.writeText(code.textContent);button.textContent='Copied';}catch{const range=document.createRange();range.selectNodeContents(code);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);button.textContent='Selected — copy text';}});
