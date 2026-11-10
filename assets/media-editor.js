@@ -1,5 +1,5 @@
 /** One media state with controls beside the content they edit. */
-window.createMediaEditor=({root,articleRoot,galleryRoot,request,wikiRoot,onChange,onInsert})=>{
+window.createMediaEditor=({root,articleRoot,galleryRoot,request,wikiRoot,onChange,onInsert,onRemove})=>{
   let value=null,files=[];
   const node=(tag,text='',className='')=>{const item=document.createElement(tag);item.textContent=text;if(className)item.className=className;return item;};
   const button=(text,action)=>{const item=node('button',text);item.type='button';item.addEventListener('click',action);return item;};
@@ -78,16 +78,17 @@ window.createMediaEditor=({root,articleRoot,galleryRoot,request,wikiRoot,onChang
     }
     value.images.forEach((image,index)=>{
       const card=node('details','','editable-image');card.dataset.imageId=image.id;const summary=node('summary',image.caption||image.file);card.append(summary);
-      const heading=node('div','','media-item-tools');heading.append(node('strong','Image '+(index+1)),button('Move up',()=>move(value.images,index,-1,()=>{renderImages();renderInfobox();})),button('Move down',()=>move(value.images,index,1,()=>{renderImages();renderInfobox();})),button('Remove from page',()=>{value.images.splice(index,1);if(value.infobox.image===image.id)value.infobox.image=null;renderImages();renderInfobox();onChange();}));
+      const heading=node('div','','media-item-tools');heading.append(node('strong','Image '+(index+1)),button('Move up',()=>move(value.images,index,-1,()=>{renderImages();renderInfobox();})),button('Move down',()=>move(value.images,index,1,()=>{renderImages();renderInfobox();})),button('Remove from page',()=>{onRemove?.(image.id);value.images.splice(index,1);if(value.infobox.image===image.id)value.infobox.image=null;renderImages();renderInfobox();onChange();}));
       const picture=node('img');picture.src=new URL('assets/'+image.file,wikiRoot).href;picture.alt=image.alt||image.file;picture.loading='lazy';
       const fileLabel=node('label','Image file'),select=node('select');select.setAttribute('aria-label','Image file');
       for(const file of files)select.add(new Option(file.title,file.file));if(!files.some(file=>file.file===image.file))select.add(new Option(image.file,image.file));select.value=image.file;
       select.addEventListener('change',()=>{const file=files.find(file=>file.file===select.value);image.file=select.value;if(!image.credit)image.credit=file?.credit??'';if(!image.source)image.source=file?.source??'';picture.src=new URL('assets/'+image.file,wikiRoot).href;renderInfobox();onChange();});fileLabel.append(select);
       const placementLabel=node('label','Display image'),placement=node('select');placement.setAttribute('aria-label','Display image');
-      for(const [key,text] of [['gallery','In gallery'],['article','In article body'],['hidden','Only as infobox image, if selected']])placement.add(new Option(text,key));
+      for(const [key,text] of [['gallery','In gallery'],['article','In article body'],['hidden','Hidden from article (can still be used in infobox)']])placement.add(new Option(text,key));
       placement.value=image.placement;placement.addEventListener('change',()=>{image.placement=placement.value;renderImages();onChange();});placementLabel.append(placement);
       card.append(heading,picture,fileLabel,placementLabel,button('Replace with a new file',()=>pickUpload(image.id,image.placement,card)),button('Use as infobox image',()=>{value.infobox.enabled=true;value.infobox.image=image.id;renderInfobox();renderImages();onChange();}));
       if(value.infobox.image!==image.id)card.append(button('Insert at article cursor',()=>{image.placement='article';onInsert(image.id);renderImages();onChange();}));
+      const sizeLabel=node('label','Image size'),size=node('select');for(const [key,title] of [['small','Small'],['medium','Medium'],['wide','Wide']])size.add(new Option(title,key));size.value=image.size??'wide';size.onchange=()=>{image.size=size.value;onChange();};sizeLabel.append(size);card.append(sizeLabel);
       textField(card,'Caption',image.caption,text=>{image.caption=text;},{multiline:true});
       const advanced=node('details','','image-advanced');advanced.append(node('summary','File, accessibility & credits'));advanced.append(fileLabel,placementLabel);card.append(advanced);
       textField(advanced,'Alternative text',image.alt,text=>image.alt=text);
@@ -96,6 +97,7 @@ window.createMediaEditor=({root,articleRoot,galleryRoot,request,wikiRoot,onChang
   }
   return {
     load(presentation){value=structuredClone(presentation??{infobox:{enabled:false,title:'',image:null,rows:[]},images:[],gallery:{enabled:true,title:'Gallery',spoiler:false}});renderInfobox();renderGallery();renderImages();},
+    hide(id){const image=value.images.find(i=>i.id===id);if(image){image.placement='hidden';renderImages();onChange();}},
     value:()=>structuredClone(value),
     async library(){files=(await request('media')).files;renderImages();},
     update(presentation){this.load(presentation);onChange();}

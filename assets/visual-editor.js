@@ -1,7 +1,7 @@
 import {renderBody,prose,escapeHtml as esc} from './wiki-markup.js';
 
 /** Visual editing for the wiki's supported headings, links, lists and tables. */
-export function createVisualEditor({surface,source,onChange,images}){
+export function createVisualEditor({surface,source,onChange,images,onImageRemoved}){
   let visual=true;
   let savedRange=null;
   document.addEventListener('selectionchange',()=>{const selection=getSelection();if(selection.rangeCount&&surface.contains(selection.anchorNode))savedRange=selection.getRangeAt(0).cloneRange();});
@@ -36,7 +36,7 @@ export function createVisualEditor({surface,source,onChange,images}){
   }
   function imageWidget(id){const image=images().find(item=>item.id===id);return '<figure contenteditable="false" data-image-id="'+esc(id)+'">'+(image?'<img src="assets/'+esc(image.file)+'" alt="'+esc(image.alt)+'"><figcaption>'+esc(image.caption||image.file)+'</figcaption>':'Image not found')+'</figure>';}
   function refresh(){savedRange=null;surface.innerHTML=renderBody(source.value).replace(/<p>\{\{image:([a-z0-9-]+)\}\}<\/p>/g,(_,id)=>imageWidget(id));surface.querySelectorAll('details').forEach(item=>item.open=true);}
-  function sync(){source.value=blocks(surface);onChange();}
+  function sync(){const before=[...source.value.matchAll(/\{\{image:([a-z0-9-]+)\}\}/g)].map(m=>m[1]);source.value=blocks(surface);for(const id of before)if(!source.value.includes('{{image:'+id+'}}'))onImageRemoved?.(id);onChange();}
   surface.addEventListener('input',sync);
   surface.addEventListener('click',event=>{
     if(event.target.closest('a'))event.preventDefault();

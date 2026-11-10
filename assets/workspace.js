@@ -1,3 +1,4 @@
+import {createDocumentsEditor} from './documents-editor.js';
 import {connectWebsitePublication} from './website-publication.js';
 import {connectGitHubWorkspace} from './github-workspace.js';
 import {createVisualEditor} from './visual-editor.js';
@@ -18,11 +19,12 @@ async function api(path,method='GET',payload){
   if(!response.headers.get('content-type')?.includes('application/json'))throw Error('This is a reading copy. Editing needs the wiki server. Open Open Wiki.cmd on the computer running the wiki.');
   const data=await response.json();if(!response.ok)throw Object.assign(Error(data.error||'The request could not be completed.'),{status:response.status});return data;
 }
-const media=createMediaEditor({root:$('media-editor'),articleRoot:$('article-media-editor'),galleryRoot:$('gallery-media-editor'),request:api,wikiRoot:rootUrl,onChange:markDirty,onInsert:id=>{showPanel('text');visualEditor.insertImage(id);}});
+const media=createMediaEditor({root:$('media-editor'),articleRoot:$('article-media-editor'),galleryRoot:$('gallery-media-editor'),request:api,wikiRoot:rootUrl,onChange:markDirty,onRemove:id=>{field('body').value=field('body').value.replaceAll('{{image:'+id+'}}','');visualEditor.refresh();},onInsert:id=>{showPanel('text');visualEditor.insertImage(id);}});
 media.load();
+const documentsEditor=createDocumentsEditor($('original-documents-editor'),markDirty);
 connectGitHubWorkspace({api,refreshSuggestions});
 const websitePublication=connectWebsitePublication({api});
-const visualEditor=createVisualEditor({surface:$('visual-body'),source:field('body'),onChange:markDirty,images:()=>media.value().images});
+const visualEditor=createVisualEditor({surface:$('visual-body'),source:field('body'),onChange:markDirty,images:()=>media.value().images,onImageRemoved:id=>media.hide(id)});
 $('visual-mode').addEventListener('click',()=>visualEditor.mode(true));
 $('source-mode').addEventListener('click',()=>visualEditor.mode(false));
 function setBusy(target,busy){for(const control of target.querySelectorAll('button,input,select,textarea'))control.disabled=busy;}
@@ -46,7 +48,7 @@ async function showPanel(panel){
   if(panel==='changes')changes();
 }
 function wholeBody(){return sectionMode?sectionMode.original.slice(0,sectionMode.start)+field('body').value+sectionMode.original.slice(sectionMode.end):field('body').value;}
-function collect(status='draft'){return {...working,id:field('id').value.trim(),title:field('title').value.trim(),lead:field('lead').value.trim(),body:wholeBody().trim(),category:field('category').value,coordinates:field('coordinates').value.trim(),status,presentation:media.value(),sources:structuredClone(sourceRows.filter(source=>source.label.trim()||source.url.trim())),related:[...relatedIds],mapPoints:structuredClone(markers)};}
+function collect(status='draft'){return {...working,id:field('id').value.trim(),title:field('title').value.trim(),lead:field('lead').value.trim(),body:wholeBody().trim(),category:field('category').value,coordinates:field('coordinates').value.trim(),status,presentation:collectPresentation(),originalDocuments:documentsEditor.value(),sources:structuredClone(sourceRows.filter(source=>source.label.trim()||source.url.trim())),related:[...relatedIds],mapPoints:structuredClone(markers)};}
 function updateUrl(id=null){
   const url=new URL(location.href);url.searchParams.delete('section');url.searchParams.delete('panel');
   if(id)url.searchParams.set('page',id);else url.searchParams.delete('page');
@@ -68,7 +70,7 @@ function loadArticle(id,{snapshot=null,newFromSuggestion=false}={}){
   if(newFromSuggestion&&linkedSuggestion){working.title=linkedSuggestion.subject;working.id=slugify(working.title);working.body=linkedSuggestion.proposedText||'';}
   sectionMode=null;$('section-notice').hidden=true;
   for(const key of ['id','title','lead','body','category','coordinates'])field(key).value=working[key]??'';field('id').readOnly=Boolean(selected);field('summary').value='';addressEdited=Boolean(selected);
-  sourceRows=structuredClone(working.sources);relatedIds=[...working.related];markers=structuredClone(working.mapPoints);media.load(working.presentation);renderSources();renderRelated();renderMarkers();renderRevisions();
+  sourceRows=structuredClone(working.sources);relatedIds=[...working.related];markers=structuredClone(working.mapPoints);media.load(working.presentation);documentsEditor.load(working.originalDocuments);renderSources();renderRelated();renderMarkers();renderRevisions();
   form.hidden=false;$('choose-article-message').hidden=true;$('editing-title').textContent=selected?'Editing '+working.title:'New article';$('return-to-article').hidden=!selected?.published;if(selected?.published)$('return-to-article').href=working.id+'.html';
   dirty=Boolean(snapshot||newFromSuggestion);say('article-message',snapshot?'Earlier version loaded. Preview the changes before publishing.':'');
   openSection();visualEditor.refresh();showView('article');showPanel(params.get('panel')==='media'?'media':'text');renderLinkedSuggestion();updateUrl(selected?.entry.id??null);
@@ -110,6 +112,7 @@ async function preview(){
 function changes(){
   const before=selected?.publishedEntry??selected?.entry??{title:'',lead:'',body:''},next=collect(),area=$('changes-content');area.replaceChildren();let count=0;
   for(const [key,label] of [['title','Title'],['lead','Introduction'],['body','Article text']])if(before[key]!==next[key]){count++;const section=make('section'),heading=make('h3',label),columns=make('div','','diff-columns');for(const [title,value,kind] of [['Published',before[key]??'','removed'],['Your edit',next[key],'added']]){const column=make('div'),pre=make('pre',value,kind);column.append(make('h4',title),pre);columns.append(column);}section.append(heading,columns);area.append(section);}
+  if(JSON.stringify(before.originalDocuments)!==JSON.stringify(next.originalDocuments))area.append(make('p','Original document editions or visibility have changed.'));
   if(JSON.stringify(before.presentation)!==JSON.stringify(next.presentation)){count++;area.append(make('p','Images, gallery or infobox settings have changed. Use Preview to inspect the result.'));}
   if(JSON.stringify([before.sources,before.related,before.mapPoints,before.coordinates,before.category])!==JSON.stringify([next.sources,next.related,next.mapPoints,next.coordinates,next.category])){count++;area.append(make('p','Sources, related articles or location settings have changed.'));}
   if(!count)area.append(make('p','No changes since the published version.'));
@@ -234,3 +237,5 @@ async function checkInbox(){
 setInterval(()=>{if(!document.hidden)checkInbox();},60000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkInbox();});
 window.addEventListener('focus',checkInbox);
+
+function collectPresentation(){const next=media.value();for(const image of next.images)if(image.placement==='article'&&working.body.includes('{{image:'+image.id+'}}')&&!wholeBody().includes('{{image:'+image.id+'}}'))image.placement='hidden';return next;}
