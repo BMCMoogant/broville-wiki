@@ -34,14 +34,16 @@ export function createVisualEditor({surface,source,onChange,images,onImageRemove
       return inline(node);
     }).filter(Boolean).join('\n\n');
   }
-  function imageWidget(id){const image=images().find(item=>item.id===id);return '<figure contenteditable="false" data-image-id="'+esc(id)+'">'+(image?'<img src="assets/'+esc(image.file)+'" alt="'+esc(image.alt)+'"><figcaption>'+esc(image.caption||image.file)+'</figcaption>':'Image not found')+'</figure>';}
+  function imageWidget(id){const image=images().find(item=>item.id===id);return '<figure class="image-size-'+esc(image?.size??'wide')+'" contenteditable="false" data-image-id="'+esc(id)+'"><div class="inline-image-tools"><button type="button" data-image-action="up">Move up</button><button type="button" data-image-action="down">Move down</button><button type="button" data-image-action="settings">Image settings</button><button type="button" data-image-action="remove">Remove</button></div>'+(image?'<img src="assets/'+esc(image.file)+'" alt="'+esc(image.alt)+'"><figcaption>'+esc(image.caption||image.file)+'</figcaption>':'Image not found')+'</figure>';}
   function refresh(){savedRange=null;surface.innerHTML=renderBody(source.value).replace(/<p>\{\{image:([a-z0-9-]+)\}\}<\/p>/g,(_,id)=>imageWidget(id));surface.querySelectorAll('details').forEach(item=>item.open=true);}
   function sync(){const before=[...source.value.matchAll(/\{\{image:([a-z0-9-]+)\}\}/g)].map(m=>m[1]);source.value=blocks(surface);for(const id of before)if(!source.value.includes('{{image:'+id+'}}'))onImageRemoved?.(id);onChange();}
   surface.addEventListener('input',sync);
   surface.addEventListener('click',event=>{
     if(event.target.closest('a'))event.preventDefault();
     const image=event.target.closest('[data-image-id]');
-    if(image){const card=[...document.querySelectorAll('.editable-image')].find(item=>item.dataset.imageId===image.dataset.imageId);if(card){card.open=true;card.scrollIntoView({block:'center'});}}
+    const action=event.target.closest('[data-image-action]')?.dataset.imageAction;
+    if(image&&action&&action!=='settings'){event.preventDefault();event.stopPropagation();if(action==='remove')image.remove();else if(action==='up'){const previous=image.previousElementSibling;if(previous)image.parentNode.insertBefore(image,previous);}else if(action==='down'){const next=image.nextElementSibling;if(next)image.parentNode.insertBefore(image,next.nextSibling);}sync();return;}
+    if(image){const card=[...document.querySelectorAll('.editable-image')].find(item=>item.dataset.imageId===image.dataset.imageId);if(card){card.open=true;for(let parent=card.parentElement;parent;parent=parent.parentElement)if(parent.tagName==='DETAILS')parent.open=true;card.scrollIntoView({block:'center'});}}
   });
   surface.addEventListener('paste',event=>{
     event.preventDefault();document.execCommand('insertText',false,event.clipboardData.getData('text/plain'));

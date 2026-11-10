@@ -12,14 +12,14 @@ const slugify=text=>text.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/g
 const say=(id,text)=>{$(id).textContent=text;};
 const make=(tag,text='',className='')=>{const node=document.createElement(tag);node.textContent=text;if(className)node.className=className;return node;};
 const button=(label,action)=>{const node=make('button',label);node.type='button';node.addEventListener('click',action);return node;};
-function markDirty(){dirty=true;previewSequence++;}
+function markDirty(){dirty=true;previewSequence++;const state=document.getElementById('save-state');if(state)state.textContent='Unsaved changes';}
 async function api(path,method='GET',payload){
   let response;
   try{response=await fetch(new URL('api/'+path,rootUrl),{method,credentials:'same-origin',headers:{...(payload?{'Content-Type':'application/json'}:{}),...(session?.csrf?{'X-Wiki-CSRF':session.csrf}:{})},body:payload?JSON.stringify(payload):undefined});}catch{throw Error('The wiki server is not available. If you run it locally, open Open Wiki.cmd.');}
   if(!response.headers.get('content-type')?.includes('application/json'))throw Error('This is a reading copy. Editing needs the wiki server. Open Open Wiki.cmd on the computer running the wiki.');
   const data=await response.json();if(!response.ok)throw Object.assign(Error(data.error||'The request could not be completed.'),{status:response.status});return data;
 }
-const media=createMediaEditor({root:$('media-editor'),articleRoot:$('article-media-editor'),galleryRoot:$('gallery-media-editor'),request:api,wikiRoot:rootUrl,onChange:markDirty,onRemove:id=>{field('body').value=field('body').value.replaceAll('{{image:'+id+'}}','');visualEditor.refresh();},onInsert:id=>{showPanel('text');visualEditor.insertImage(id);}});
+const media=createMediaEditor({root:$('media-editor'),articleRoot:$('article-media-editor'),galleryRoot:$('gallery-media-editor'),request:api,wikiRoot:rootUrl,onChange:markDirty,onRemove:id=>{field('body').value=field('body').value.replaceAll('{{image:'+id+'}}','');visualEditor.refresh();},onInsert:id=>{showPanel('text');visualEditor.insertImage(id);media.showInArticle(id);}});
 media.load();
 const documentsEditor=createDocumentsEditor($('original-documents-editor'),markDirty);
 connectGitHubWorkspace({api,refreshSuggestions});
@@ -48,7 +48,7 @@ async function showPanel(panel){
   if(panel==='changes')changes();
 }
 function wholeBody(){return sectionMode?sectionMode.original.slice(0,sectionMode.start)+field('body').value+sectionMode.original.slice(sectionMode.end):field('body').value;}
-function collect(status='draft'){return {...working,id:field('id').value.trim(),title:field('title').value.trim(),lead:field('lead').value.trim(),body:wholeBody().trim(),category:field('category').value,coordinates:field('coordinates').value.trim(),status,presentation:collectPresentation(),originalDocuments:documentsEditor.value(),sources:structuredClone(sourceRows.filter(source=>source.label.trim()||source.url.trim())),related:[...relatedIds],mapPoints:structuredClone(markers)};}
+function collect(status='draft'){const presentation=media.value();for(const image of presentation.images)if(wholeBody().includes('{{image:'+image.id+'}}'))image.placement='article';return {...working,id:field('id').value.trim(),title:field('title').value.trim(),lead:field('lead').value.trim(),body:wholeBody().trim(),category:field('category').value,coordinates:field('coordinates').value.trim(),status,presentation:collectPresentation(),originalDocuments:documentsEditor.value(),sources:structuredClone(sourceRows.filter(source=>source.label.trim()||source.url.trim())),related:[...relatedIds],mapPoints:structuredClone(markers)};}
 function updateUrl(id=null){
   const url=new URL(location.href);url.searchParams.delete('section');url.searchParams.delete('panel');
   if(id)url.searchParams.set('page',id);else url.searchParams.delete('page');
@@ -73,7 +73,7 @@ function loadArticle(id,{snapshot=null,newFromSuggestion=false}={}){
   sourceRows=structuredClone(working.sources);relatedIds=[...working.related];markers=structuredClone(working.mapPoints);media.load(working.presentation);documentsEditor.load(working.originalDocuments);renderSources();renderRelated();renderMarkers();renderRevisions();
   $('delete-article').hidden=!selected||session?.user.role!=='admin';
   form.hidden=false;$('choose-article-message').hidden=true;$('editing-title').textContent=selected?'Editing '+working.title:'New article';$('return-to-article').hidden=!selected?.published;if(selected?.published)$('return-to-article').href=working.id+'.html';
-  dirty=Boolean(snapshot||newFromSuggestion);say('article-message',snapshot?'Earlier version loaded. Preview the changes before publishing.':'');
+  dirty=Boolean(snapshot||newFromSuggestion);if($('save-state'))$('save-state').textContent=dirty?'Unsaved changes':'Saved';say('article-message',snapshot?'Earlier version loaded. Preview the changes before publishing.':'');
   openSection();visualEditor.refresh();showView('article');showPanel(params.get('panel')==='media'?'media':'text');renderLinkedSuggestion();updateUrl(selected?.entry.id??null);
 }
 function renderChooser(){

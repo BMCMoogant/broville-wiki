@@ -34,6 +34,6 @@ export function sectionHtml(section,entryId=''){
   return '<section id="'+section.id+'" class="level-'+section.level+'"><'+tag+'>'+escapeHtml(section.title)+(entryId?'<a class="section-edit" href="editor.html?page='+entryId+'&amp;section='+section.id+'">edit</a>':'')+'</'+tag+'>'+prose(section.lines)+'</section>';
 }
 export function renderBody(body,entryId='',options={}){
-  const parts=sections(body),hidden=parts.filter(part=>part.spoiler);
+  const parts=sections(body.replace(/\{\{image:[a-z0-9-]+\}\}/g,'\n$&\n')),hidden=parts.filter(part=>part.spoiler);
   return parts.filter(part=>!part.spoiler).map(part=>sectionHtml(part,entryId)).join('')+(hidden.length?spoiler(hidden.map(part=>part.level===3?sectionHtml(part,entryId):prose(part.lines)).join(''),options.quest?'Reveal solution and ending':'Reveal spoiler'):'');
 }

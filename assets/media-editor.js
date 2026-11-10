@@ -97,6 +97,7 @@ window.createMediaEditor=({root,articleRoot,galleryRoot,request,wikiRoot,onChang
   }
   return {
     load(presentation){value=structuredClone(presentation??{infobox:{enabled:false,title:'',image:null,rows:[]},images:[],gallery:{enabled:true,title:'Gallery',spoiler:false}});renderInfobox();renderGallery();renderImages();},
+    showInArticle(id){const image=value.images.find(i=>i.id===id);if(image){image.placement='article';renderImages();onChange();}},
     hide(id){const image=value.images.find(i=>i.id===id);if(image){image.placement='hidden';renderImages();onChange();}},
     value:()=>structuredClone(value),
     async library(){files=(await request('media')).files;renderImages();},
