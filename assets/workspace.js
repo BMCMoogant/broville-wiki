@@ -1,3 +1,4 @@
+import {connectEditorLayout} from './editor-layout.js';
 import {sections as documentSections} from './wiki-markup.js';
 import {createDocumentsEditor} from './documents-editor.js';
 import {connectWebsitePublication} from './website-publication.js';
@@ -25,6 +26,7 @@ media.load();
 const documentsEditor=createDocumentsEditor($('original-documents-editor'),markDirty);
 connectGitHubWorkspace({api,refreshSuggestions});
 const websitePublication=connectWebsitePublication({api});
+connectEditorLayout();
 const visualEditor=createVisualEditor({surface:$('visual-body'),source:field('body'),onChange:markDirty,images:()=>media.value().images,onImageRemoved:id=>media.hide(id)});
 $('visual-mode').addEventListener('click',()=>visualEditor.mode(true));
 $('source-mode').addEventListener('click',()=>visualEditor.mode(false));
@@ -218,7 +220,7 @@ async function publicHistory(id){
 }
 if(params.get('tab')==='history'&&params.get('page'))publicHistory(params.get('page'));
 if(location.protocol!=='file:')api('status').then(async status=>{
-  if(status.editorEngine!=='structured-markdown-v1'){say('workspace-message','The editor has been upgraded. Close the wiki server window, reopen Open Wiki.cmd, then reload this page. Your saved articles are preserved.');$('workspace-title').textContent='Restart the wiki server';return;}
+  if(status.editorEngine!=='structured-markdown-v2'){say('workspace-message','The editor has been upgraded. Close the wiki server window, reopen Open Wiki.cmd, then reload this page. Your saved articles are preserved.');$('workspace-title').textContent='Restart the wiki server';return;}
   if(status.setupRequired){if(setupToken){$('workspace-title').textContent='Create your administrator account';$('setup-section').hidden=false;say('workspace-message','First-time setup · choose your account details below.');}else{$('setup-needed').hidden=false;say('workspace-message','This wiki needs its first administrator account.');}return;}
   setupToken='';sessionStorage.removeItem('broville.setup');session=(await api('session')).session;if(session)await openWorkspace();else showSignIn();
 }).catch(error=>say('workspace-message',error.message));
