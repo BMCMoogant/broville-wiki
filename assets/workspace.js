@@ -71,6 +71,7 @@ function loadArticle(id,{snapshot=null,newFromSuggestion=false}={}){
   sectionMode=null;$('section-notice').hidden=true;
   for(const key of ['id','title','lead','body','category','coordinates'])field(key).value=working[key]??'';field('id').readOnly=Boolean(selected);field('summary').value='';addressEdited=Boolean(selected);
   sourceRows=structuredClone(working.sources);relatedIds=[...working.related];markers=structuredClone(working.mapPoints);media.load(working.presentation);documentsEditor.load(working.originalDocuments);renderSources();renderRelated();renderMarkers();renderRevisions();
+  $('delete-article').hidden=!selected||session?.user.role!=='admin';
   form.hidden=false;$('choose-article-message').hidden=true;$('editing-title').textContent=selected?'Editing '+working.title:'New article';$('return-to-article').hidden=!selected?.published;if(selected?.published)$('return-to-article').href=working.id+'.html';
   dirty=Boolean(snapshot||newFromSuggestion);say('article-message',snapshot?'Earlier version loaded. Preview the changes before publishing.':'');
   openSection();visualEditor.refresh();showView('article');showPanel(params.get('panel')==='media'?'media':'text');renderLinkedSuggestion();updateUrl(selected?.entry.id??null);
@@ -239,3 +240,15 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkInbox
 window.addEventListener('focus',checkInbox);
 
 function collectPresentation(){const next=media.value();for(const image of next.images)if(image.placement==='article'&&working.body.includes('{{image:'+image.id+'}}')&&!wholeBody().includes('{{image:'+image.id+'}}'))image.placement='hidden';return next;}
+
+$('delete-article').addEventListener('click',async()=>{
+ if(!selected||session?.user.role!=='admin')return;
+ if(!confirm('Delete “'+selected.entry.title+'” permanently? Its page, draft and revision history will be removed. Links from other articles will become plain text.'+(dirty?' Unsaved changes will also be discarded.':'')))return;
+ const button=$('delete-article');button.disabled=true;
+ try{
+   collection=await api('entries/delete','POST',{id:selected.entry.id,base:selected.base??null,draftVersion:selected.draftVersion??null});
+   dirty=false;selected=null;working=null;linkedSuggestion=null;sectionMode=null;form.hidden=true;button.hidden=true;
+   $('choose-article-message').hidden=false;updateUrl(null);renderChooser();showView('dashboard');
+   say('workspace-message','Article deleted. References in other articles were kept as plain text.');websitePublication.publish();
+ }catch(error){say('article-message',error.message);}finally{button.disabled=false;}
+});
